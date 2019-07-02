@@ -2,7 +2,7 @@ include include.mk
 
 INC_PARAMS=$(foreach d, $(INCLUDE_DIRS), -I$d)
 
-EXE = bin/mpfm
+EXE = ../../bin/mpfm
 EXE_DEBUG = mpfm_debug
 TEST_EXE = test/run_tests
 
