@@ -19,6 +19,7 @@ class MPFM_Instance{
         std::vector<double> map_dists;
         std::vector<int> ef_genome_map;
         std::vector<int> init_polymorphism_ct;
+        std::vector<double> length_of_each_chromo;
 
         std::vector<std::vector<Individual*>> indivs_by_pop;
         DataWrangler* data_wrangler;
@@ -38,7 +39,7 @@ class MPFM_Instance{
         // Run generations
         void burn_in();
         void fragmentation();
-        void run_generation(int gen);
+        void run_generation(int gen, int log_freq);
         void logging(int gen);
 
         // Core methods
@@ -62,13 +63,31 @@ class MPFM_Instance{
         int N_INDIVIDUALS;
         int N_LOCI;
         double BASE_MIGRATION_RATE;
+        int sample_size;
+        double sample_prop;
 
         // Random generation
         std::mt19937* main_gen;
         double uniform_01();
         int uniform_int(int lo, int hi);
         int binomial(double p, int n);
+        int poisson(double lambda);
 
 };
+
+template <typename T>
+std::vector<size_t> sort_indexes(const std::vector<T> &v) {
+
+  // initialize original index locations
+  std::vector<size_t> idx(v.size());
+  iota(idx.begin(), idx.end(), 0);
+
+  // sort indexes based on comparing values in v
+  sort(idx.begin(), idx.end(),
+       [&v](size_t i1, size_t i2) {return v[i1] < v[i2];});
+
+  return idx;
+}
+
 
 #endif

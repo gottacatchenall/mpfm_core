@@ -79,8 +79,12 @@ void Individual::gen_haplotype(Individual* parent, int haplo){
     int parent_haplotype = this->mpfm->uniform_int(0,1);
 
     double mutation_rate = this->mpfm->params["MUTATION_RATE"];
-
     int n_mutations = this->mpfm->binomial(mutation_rate, n_loci);
+
+    // num crossovers per chromosome
+
+
+    // pull n_chrosovers from poisson genome length, and weight where they are by map positions
 
     std::vector<int> mutation_sites;
     mutation_sites.reserve(n_mutations);

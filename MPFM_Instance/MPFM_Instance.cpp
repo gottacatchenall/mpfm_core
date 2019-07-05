@@ -16,9 +16,11 @@ MPFM_Instance::MPFM_Instance(){
 // ================================================================
 void MPFM_Instance::burn_in(){
     int n_gen_burnin = this->params["BURN_IN_LENGTH"];
+    int log_freq = this->params["CENSUS_FREQ"];
+
     for (int gen = 0; gen < n_gen_burnin; gen++){
-        this->run_generation(gen);
-        if (gen % 10 == 0){
+        this->run_generation(gen, log_freq);
+        if (gen % 50 == 0){
             printf("%d\n", gen);
         }
     }
@@ -27,20 +29,20 @@ void MPFM_Instance::burn_in(){
 void MPFM_Instance::fragmentation(){
     int n_gen_burnin = this->params["BURN_IN_LENGTH"];
     int n_gen_fragmentation = this->params["FRAGMENTATION_LENGTH"];
+    int log_freq = this->params["FRAG_LOG_FREQ"];
     int stop_gen = n_gen_fragmentation + n_gen_burnin;
 
     this->dis_kernel = this->fragmentation_dis_kernel;
 
     for (int gen = n_gen_burnin+1; gen < stop_gen; gen++){
-        this->run_generation(gen);
+        this->run_generation(gen, log_freq);
         if (gen % 10 == 0){
             printf("%d\n", gen);
         }
     }
 }
 
-void MPFM_Instance::run_generation(int gen){
-    int log_freq = this->params["CENSUS_FREQ"];
+void MPFM_Instance::run_generation(int gen, int log_freq){
     this->dispersal();
     this->selection();
 
@@ -53,9 +55,33 @@ void MPFM_Instance::run_generation(int gen){
 
 void MPFM_Instance::logging(int gen){
     this->split_indivs_by_pop();
-    printf("about to census\n");
-    this->data_wrangler->census(gen, SAMPLE_ALL);
-    printf("census done\n");
+
+    double sample_prop =  this->params["SAMPLE_SIZE"];
+    if (sample_prop == SAMPLE_ALL){
+        this->sample_prop = 1.0;
+        this->data_wrangler->census(gen, SAMPLE_ALL);
+    }
+    else {
+        this->sample_prop = sample_prop;
+        double k = double(this->params["N_INDIVIDUALS"]) / double(this->populations.size());
+        this->sample_size = sample_prop * k;
+        this->data_wrangler->census(gen, this->sample_size);
+    }
+
+/*
+    std::vector<int> samp_sizes = {SAMPLE_ALL, 5, 15, 30};
+
+    for (int s : samp_sizes){
+        this->sample_size = s;
+        this->data_wrangler->census(gen, this->sample_size);
+    }*/
+
+    /*if (this->sample_size == -1){
+        this->data_wrangler->census(gen, SAMPLE_ALL);
+    }
+    else{
+        this->data_wrangler->census(gen, this->sample_size);
+    }*/
 }
 
 
@@ -131,29 +157,30 @@ void MPFM_Instance::reproduction(){
         indivs = this->indivs_by_pop[p];
         pop = this->populations[p];
         int n = indivs.size();
-        double exp_num_off = n * pop->mean_w * base_fec;
 
-        int n_off = int(exp_num_off);
 
-        for (int i = 0; i < n_off; i++ ){
-            random1 = this->get_random_individual(p);
-            random2 = random1;
+        if (n > 1){
+            double exp_num_off = n * pop->mean_w * base_fec;
+            int n_off = int(exp_num_off);
+            for (int i = 0; i < n_off; i++ ){
+                random1 = this->get_random_individual(p);
+                random2 = random1;
 
-            while (random2 == random1){
-                random2 = this->get_random_individual(p);
+                while (random2 == random1){
+                    random2 = this->get_random_individual(p);
+                }
+
+                parent_migrated = (random1->has_migrated || random2->has_migrated);
+
+                int parent1_home = random1->pop_born_in;
+                int parent2_home = random2->pop_born_in;
+
+                offspring = new Individual(this, p, parent1_home, parent2_home, parent_migrated);
+                offspring->gen_haplotype(random1, 0);
+                offspring->gen_haplotype(random2, 1);
+                this->next_gen->push_back(offspring);
             }
-
-            parent_migrated = (random1->has_migrated || random2->has_migrated);
-
-            int parent1_home = random1->pop_born_in;
-            int parent2_home = random2->pop_born_in;
-
-            offspring = new Individual(this, p, parent1_home, parent2_home, parent_migrated);
-            offspring->gen_haplotype(random1, 0);
-            offspring->gen_haplotype(random2, 1);
-            this->next_gen->push_back(offspring);
         }
-
     }
 
 
@@ -292,15 +319,36 @@ Individual* MPFM_Instance::get_random_individual(int pop){
     std::vector<Individual*> indivs = this->indivs_by_pop[pop];
 
     int size = indivs.size();
-    int index = this->uniform_int(0, size-1);
-    return indivs[index];
+    if (size > 1){
+        int index = this->uniform_int(0, size-1);
+        return indivs[index];
+    }
+    if (size == 1){
+        return indivs[0];
+    }
+    else {
+        return NULL;
+    }
 }
 
 std::vector<Individual*> MPFM_Instance::sample_n_random_indivs(int pop, int n){
     std::vector<Individual*> indivs = this->indivs_by_pop[pop];
     std::vector<Individual*> random_indivs;
 
-    int max_index = indivs.size() - 1;
+    int n_total = indivs.size();
+    int max_index = n_total - 1;
+
+    if (n >= n_total){
+        return indivs;
+    }
+
+    // if sample is more than not sample
+    bool picking_complement = false;
+    if (n > (n_total - n)){
+        // pick n_total - n NOT to include
+        n = (n_total - n);
+        picking_complement = true;
+    }
 
     int ct = 0;
     while (ct  < n){
@@ -317,6 +365,24 @@ std::vector<Individual*> MPFM_Instance::sample_n_random_indivs(int pop, int n){
             ct++;
         }
     }
+
+    // set return to thos not in random_indivs
+    if (picking_complement) {
+        std::vector<Individual*> indivs_to_return;
+        for (Individual* indiv : indivs){
+            bool in_random = false;
+            for (Individual* r_indiv : random_indivs){
+                if (indiv == r_indiv){
+                    in_random = true;
+                }
+            }
+            if(!in_random){
+                indivs_to_return.push_back(indiv);
+            }
+        }
+        return indivs_to_return;
+    }
+
 
     return random_indivs;
 }
@@ -461,23 +527,25 @@ void MPFM_Instance::read_genome_dict(){
     std::ifstream infile("genome.ini");
     std::string line;
 
-    int n_ef = this->params["EF_NUMBER"];
-    int loci_per_ef = this->params["N_LOCI_PER_EF"];
-    int n_neutral_loci = this->params["N_NEUTRAL_LOCI"];
+//    int loci_per_ef = this->params["N_LOCI_PER_EF"];
+//    int n_neutral_loci = this->params["N_NEUTRAL_LOCI"];
 
-    int n_loci = n_ef*loci_per_ef + n_neutral_loci;
+//    int n_loci = n_ef*loci_per_ef + n_neutral_loci;
 
-    this->N_LOCI = n_loci;
 
-    for (int l = 0; l < n_loci; l++){
-        this->selection_strengths.push_back(0.0);
-        this->chromosome_map.push_back(0);
-        this->map_dists.push_back(0.0);
-        this->ef_genome_map.push_back(0);
-        this->init_polymorphism_ct.push_back(0);
-    }
+    // it would be better to just read whats in the genome dict and move on
+
     // file format:
     // locus,selection_str,ef,chromosome,map_distance
+
+    std::vector<double> sel_str_tmp;
+    std::vector<int> chr_map_tmp;
+    std::vector<double> map_dist_tmp;
+    std::vector<int> ef_map_tmp;
+    std::vector<int> init_poly_tmp;
+
+    int max_chr = 0;
+    int l_ct = 0;
     while (std::getline(infile, line)) {
         std::istringstream iss(line);
         std::vector<std::string> record;
@@ -487,23 +555,87 @@ void MPFM_Instance::read_genome_dict(){
           record.push_back( s );
         }
 
-        int l = atoi(record[0].c_str());
+
+        std::string locus_name = record[0];
         double sel_str = atof(record[1].c_str());
         int ef = atoi(record[2].c_str());
         int chromo = atoi(record[3].c_str());
+        if (chromo > max_chr){
+            max_chr = chromo;
+        }
         double map_dist = atof(record[4].c_str());
         int init_poly= atoi(record[5].c_str());
 
-        this->selection_strengths[l] = sel_str;
+        // TODO
+        // check if all are valid format
+
+        sel_str_tmp.push_back(sel_str);
+        chr_map_tmp.push_back(chromo);
+        map_dist_tmp.push_back(map_dist);
+        ef_map_tmp.push_back(ef);
+        init_poly_tmp.push_back(init_poly);
+
+    /*    this->selection_strengths[l] = sel_str;
         this->ef_genome_map[l] = ef;
         this->chromosome_map[l] = chromo;
         this->map_dists[l] = map_dist;
-        this->init_polymorphism_ct[l] = init_poly;
+        this->init_polymorphism_ct[l] = init_poly;*/
+        l_ct++;
+    }
+    this->N_LOCI = l_ct;
+
+
+    // sort genome
+    // first sort into chromo, then by map dist
+    std::vector<std::vector<int>> loci_per_chromo;
+    for (int c = 0; c <= max_chr; c++){
+        loci_per_chromo.push_back(std::vector<int>());
+    }
+    int loci_per_chromo_len = 0;
+    for (int l = 0; l < l_ct; l++){
+        int c = chr_map_tmp[l];
+        if (c > loci_per_chromo_len){
+            loci_per_chromo[c].push_back(l);
+        }
+    }
+
+    std::vector<int> loci_this_chr;
+
+    std::vector<int> sorted_loci;
+    for (int c = 0; c <= max_chr; c++){
+        std::vector<double> map_dists;
+        loci_this_chr = loci_per_chromo[c];
+        for (int l : loci_this_chr){
+            map_dists.push_back(map_dist_tmp[l]);
+        }
+        std::vector<int> chr_indexs_sorted;
+        for (int i : sort_indexes(map_dists)){
+            int l = loci_this_chr[i];
+
+            this->selection_strengths.push_back(sel_str_tmp[l]);
+            this->ef_genome_map.push_back(ef_map_tmp[l]);
+            this->chromosome_map.push_back(chr_map_tmp[l]);
+            this->map_dists.push_back(map_dist_tmp[l]);
+            this->init_polymorphism_ct.push_back(init_poly_tmp[l]);
+        }
+    }
+
+    this->length_of_each_chromo.reserve(max_chr);
+
+    for (int c = 0; c < max_chr; c++){
+        this->length_of_each_chromo.push_back(0.0);
+        for (int l = 0; l < N_LOCI; l++){
+            if (this->chromosome_map[l] == c){
+                if (l > 0){
+                    this->length_of_each_chromo[c] += this->map_dists[l]-this->map_dists[l-1];
+                }
+            }
+        }
     }
 }
 
 void MPFM_Instance::init_random_generators(){
-    int rs = this->params["RS_MAIN"];
+    int rs = this->params["RANDOM_SEED"];
     this->main_gen = new std::mt19937(rs);
 }
 void MPFM_Instance::init_individuals(){
@@ -571,4 +703,8 @@ int MPFM_Instance::uniform_int(int lo, int hi){
 int MPFM_Instance::binomial(double p, int n){
     std::binomial_distribution<int> b_dis(n, p);
     return b_dis(*this->main_gen);
+}
+int MPFM_Instance::poisson(double lambda){
+    std::poisson_distribution<int> dis(lambda);
+    return dis(*this->main_gen);
 }

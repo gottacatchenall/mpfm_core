@@ -59,18 +59,27 @@ class DataWrangler{
         // Functions to compute stats for pairwise populations
         double** get_ld_matrix(int p1, int p2, int sample_size);
         double calc_pairwise_ld(int p1, int p2, int l1, int l2);
-        double calc_ld_from_ct(int ct_a, int ct_b, int ct_ab, int eff_pop_size);
         double get_euclidean_distance(int p1, int p2);
         double get_mean_pooled_ld(double** ld_matrix);
         double get_mean_pooled_fst(int p1, int p2);
         double get_eff_migration(int p_from, int p_to);
-        double get_ld_clustering(double** ld_matrix, double ld_threshold);
+        double get_ld_clustering(double** ld_matrix, double ld_threshold, int nchoose3);
+        unsigned long int nChoosek( unsigned long int n, unsigned long k );
 
+        // Functions to calculate summary stats by loci
+        int get_poly_ct(int l);
+        double get_mean_poly_per_pop(int l);
+        double get_f_st_by_locus(int l);
+        double get_mean_global_ld(int l);
 
         // Functions to calculate summary stats for individual populations
         double get_effective_migration_single_pop(int p);
         double get_prop_of_loci_fixed(int p);
         double get_mean_polymorphism_ct(int p);
+
+        // LD
+        double calc_ld_from_ct(int ct_a, int ct_b, int ct_ab, int eff_pop_size);
+        double calc_ld_between_two_loci(std::vector<allele*> l1_alleles, std::vector<allele*> l2_alleles, int l1, int l2, int p1, int p2, int eff_pop_size);
 
         // Allele table
         void construct_allele_table(int sample_size);
@@ -82,6 +91,10 @@ class DataWrangler{
         void write_individual_pop_data(int gen, int pop, double x, double y, double w_mean, double prop_of_k, double eff_mig, double prop_loci_fixed, double mean_polymorphism_ct_per_locus, std::vector<double> efs);
 
         void write_pairwise_pop_data(int gen, int pop1, int pop2, double dist, double mean_ld, double mean_fst, double mig_p1_to_p2, double mig_p2_to_p1, double ld_clustering, double ld_network_threshold);
+
+//        std::string genome_header = "generation,locus,selection_weight,chromosome,global_polymorphism_ct,mean_polymorphism_ct_per_pop,global_f_st,mean_global_ld\n";
+
+        void write_genome_data(int gen, int locus, double weight, int chromo, int poly_ct, double mean_poly_per_pop, double f_st, double mean_global_ld);
 };
 
 #endif
