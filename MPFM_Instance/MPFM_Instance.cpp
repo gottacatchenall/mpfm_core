@@ -194,7 +194,7 @@ void MPFM_Instance::reproduction(){
         delete indiv;
     }
     delete this->indivs;
-    //delete[] this->indivs;
+//    delete[] this->indivs;
     this->indivs = next_gen;
     this->next_gen = new std::vector<Individual*>;
 }
@@ -400,11 +400,13 @@ std::vector<Individual*> MPFM_Instance::sample_n_random_indivs(int pop, int n){
 void MPFM_Instance::initialize(){
     this->read_params_ini();
     this->read_pops_ini();
+    printf("init\n");
 
     this->read_burnin_dis_kernel();
     this->read_fragmentation_dis_kernel();
 
     this->dis_kernel = this->burn_in_dis_kernel;
+
 
     this->read_genome_dict();
     this->init_random_generators();

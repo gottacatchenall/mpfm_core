@@ -7,7 +7,7 @@ EXE_DEBUG = mpfm_debug
 TEST_EXE = test/run_tests
 
 CC = ${CXX}
-CFLAGS = -std=c++11 -Wall $(INC_PARAMS) -O3 -g -ligraph
+CFLAGS = -std=c++11 -Wall $(INC_PARAMS) -O3 -g 
 
 DEBUG_FLAG = -D __DEBUG__
 
