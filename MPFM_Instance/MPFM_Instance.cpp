@@ -56,16 +56,21 @@ void MPFM_Instance::run_generation(int gen, int log_freq){
 void MPFM_Instance::logging(int gen){
     this->split_indivs_by_pop();
 
-    double sample_prop =  this->params["SAMPLE_SIZE"];
-    if (sample_prop == SAMPLE_ALL){
-        this->sample_prop = 1.0;
-        this->data_wrangler->census(gen, SAMPLE_ALL);
-    }
-    else {
-        this->sample_prop = sample_prop;
-        double k = double(this->params["N_INDIVIDUALS"]) / double(this->populations.size());
-        this->sample_size = sample_prop * k;
-        this->data_wrangler->census(gen, this->sample_size);
+    //double sample_prop =  this->params["SAMPLE_SIZE"];
+
+    std::vector<double> sample_props = {SAMPLE_ALL, 0.1, 0.2, 0.5};
+
+    for (double sample_prop : sample_props){
+        if (sample_prop == SAMPLE_ALL){
+            this->sample_prop = 1.0;
+            this->data_wrangler->census(gen, SAMPLE_ALL);
+        }
+        else {
+            this->sample_prop = sample_prop;
+            double k = double(this->params["N_INDIVIDUALS"]) / double(this->populations.size());
+            this->sample_size = sample_prop * k;
+            this->data_wrangler->census(gen, this->sample_size);
+        }
     }
 
 /*
